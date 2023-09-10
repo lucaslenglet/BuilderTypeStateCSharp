@@ -1,16 +1,12 @@
-﻿
-using Dumpify;
+﻿using Dumpify;
 
 var req = RequestBuilder.Create()
     .WithMethod("GET")
-    .WithUrl("http://exemple.com/")
+    .WithUrl("http://example.com/")
     .AddHeader("Hello", "World")
     .Build();
 
 req.Dump();
-
-
-
 
 class Request
 {
@@ -19,43 +15,66 @@ class Request
     public (string Key, string Value)[] Headers { get; init; } = null!;
 }
 
-class RequestBuilder
+interface IBuilderState { }
+
+interface IMethodEmpty : IBuilderState { }
+interface IMethodDefined : IBuilderState { }
+
+interface IUrlEmpty : IBuilderState { }
+interface IUrlDefined : IBuilderState { }
+
+static class RequestBuilder
 {
-    private List<(string Key, string Value)> _headers { get; set; } = new();
+    public static RequestBuilder<IMethodEmpty, IUrlEmpty> Create() => new();
+}
 
-    public string? Method { get; private set; }
-    public string? Url { get; private set; }
-    public IReadOnlyList<(string Key, string Value)> Headers => _headers;
-
-    public static RequestBuilder Create() => new RequestBuilder();
-
-    public RequestBuilder WithMethod(string method)
+static class RequestBuilderExtensions
+{
+    public static RequestBuilder<IMethodDefined, TUrlState> WithMethod<TUrlState>(this RequestBuilder<IMethodEmpty, TUrlState> builder, string method)
+        where TUrlState : IBuilderState
     {
-        Method = method;
-        return this;
+        return new RequestBuilder<IMethodDefined, TUrlState>
+        {
+            Method = method,
+            Url = builder.Url,
+            Headers = builder.Headers,
+        };
     }
 
-    public RequestBuilder WithUrl(string url)
+    public static RequestBuilder<TMehodState, IUrlDefined> WithUrl<TMehodState>(this RequestBuilder<TMehodState, IUrlEmpty> builder, string url)
+        where TMehodState : IBuilderState
     {
-        Url = url;
-        return this;
+        return new RequestBuilder<TMehodState, IUrlDefined>
+        {
+            Method = builder.Method,
+            Url = url,
+            Headers = builder.Headers,
+        };
     }
 
-    public RequestBuilder AddHeader(string key, string value)
-    {
-        _headers.Add((key, value));
-        return this;
-    }
-
-    public Request Build()
+    public static Request Build(this RequestBuilder<IMethodDefined, IUrlDefined> builder)
     {
         return new Request()
         {
-            Url = Url!,
-            Method = Method!,
-            Headers = _headers.ToArray()
+            Url = builder.Url!,
+            Method = builder.Method!,
+            Headers = builder.Headers.ToArray()
         };
-    }    
+    }
 }
 
+class RequestBuilder<TMethodState, TUrlState>
+    where TMethodState : IBuilderState
+    where TUrlState : IBuilderState
+{
 
+    public string? Method { get; set; }
+    public string? Url { get; set; }
+    public List<(string Key, string Value)> Headers { get; set; } = new();
+
+    public RequestBuilder<TMethodState, TUrlState> AddHeader(string key, string value)
+    {
+        Headers.Add((key, value));
+        return this;
+    }
+}
